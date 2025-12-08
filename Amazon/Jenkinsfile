@@ -1,0 +1,33 @@
+//added some features
+
+pipeline{
+	agent any
+  
+	stages{
+    
+		stage( 'clone' ){
+		steps{
+			git branch:'master' ,url:'https://github.com/likhithaal/Amazon.git'
+		    }
+  		}
+      
+		stage( 'clean' ){
+		steps{
+			sh 'cd Amazon && mvn clean'
+			}
+		}
+		
+		stage( 'test' ){
+		steps{
+			sh 'cd Amazon && mvn test'
+			}
+		}
+		
+		stage( 'build' ){
+		steps{
+			sh 'cd Amazon && mvn clean install'
+			}
+		}
+		
+	}
+}
