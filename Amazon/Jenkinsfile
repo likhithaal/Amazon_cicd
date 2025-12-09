@@ -35,8 +35,8 @@ pipeline{
 		
 		stage( 'build' ){
 		steps{
-			echo "Building version: ${APP_VERSION}"
-			sh "cd Amazon && mvn clean install -Dapp.version=${APP_VERSION}"
+			echo "Building version: ${params.APP_VERSION}"
+			sh "cd Amazon && mvn clean install -Dapp.version=${params.APP_VERSION}"
 			}
 		}
 		
