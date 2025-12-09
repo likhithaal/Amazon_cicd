@@ -2,12 +2,22 @@
 
 pipeline{
 	agent any
-  
+
+    parameters {
+		string(name: 'APP_VERSION', defaultValue: '1.0.0', description: 'Application Version')
+        choice(name: 'ENV', choices: ['dev', 'qa', 'prod'], description: 'Select Environment')
+    }
+
+	environment {
+        BRANCH_NAME = "${params.ENV}-branch"
+    }
+	
 	stages{
     
 		stage( 'clone' ){
 		steps{
-			git branch:'main' ,url:'https://github.com/likhithaal/Amazon_cicd.git'
+			echo "Cloning branch: ${BRANCH_NAME}"
+			git branch: "${BRANCH_NAME}" , url:'https://github.com/likhithaal/Amazon_cicd.git'
 		    }
   		}
       
@@ -25,7 +35,8 @@ pipeline{
 		
 		stage( 'build' ){
 		steps{
-			sh 'cd Amazon && mvn clean install'
+			echo "Building version: ${APP_VERSION}"
+			sh "cd Amazon && mvn clean install -Dapp.version=${APP_VERSION}"
 			}
 		}
 		
