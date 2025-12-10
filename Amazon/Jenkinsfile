@@ -1,170 +1,83 @@
-pipeline {
-    agent any
+
+pipeline{
+	agent any
 
     parameters {
-        string(name: 'APP_VERSION', defaultValue: '1.0.0', description: 'Application Version')
+		string(name: 'APP_VERSION', defaultValue: '1.0.0', description: 'Application Version')
+        choice(name: 'ENV', choices: ['dev', 'qa', 'prod'], description: 'Select Environment')
+		string(name: 'TOMCAT_USER', defaultValue: 'tomcatuser1', description: 'Tomcat Manager Username')
+        string(name: 'TOMCAT_PASSWORD', defaultValue: 'tomcatuer1', description: 'Tomcat Manager Password')
+		// password(name: 'TOMCAT_PASSWORD', defaultValue: 'tomcatuser1', description: 'Tomcat Manager Password')
     }
 
-    environment {
-        // Set Tomcat paths
-        DEV_TOMCAT  = "/opt/tomcat_dev"
-        QA_TOMCAT   = "/opt/tomcat_qa"
-        PROD_TOMCAT = "/opt/tomcat_prod"
-
-        // Backup folder
-        BACKUP_DIR = "/home/likhitha/Devops-course/jenkins/jenkins_backup"
-
-        // Resolve version safely
-        VERSION = "${params.APP_VERSION ?: '1.0.0'}"
+	environment {
+        BRANCH_NAME = "${params.ENV}-branch"
+		WAR_BACKUP_DIR = "/home/likhitha/Devops-course/jenkins/jenkins_backup"
+		DEPLOY_SERVER = "localhost"  // Your Tomcat server IP
+        DEPLOY_PATH = "/opt/tomcat/webapps"
+        TOMCAT_MANAGER_URL = "http://localhost:8081/manager/Amazon"
     }
-
-    stages {
-
-        /* ------------------------------------------------------
-         * 1. CLONE REPO
-         ------------------------------------------------------ */
-        stage('Clone') {
-            steps {
-                echo "Building branch: ${env.BRANCH_NAME}"
-                checkout scm
-            }
-        }
-
-        /* ------------------------------------------------------
-         * 2. CLEAN
-         ------------------------------------------------------ */
-        stage('Clean') {
-            steps {
-                sh 'cd Amazon && mvn clean'
-            }
-        }
-
-        /* ------------------------------------------------------
-         * 3. UNIT TEST
-         ------------------------------------------------------ */
-        stage('Unit Test') {
-            steps {
-                sh 'cd Amazon && mvn test'
-            }
-        }
-
-        /* ------------------------------------------------------
-         * 4. SONARQUBE ANALYSIS
-         ------------------------------------------------------ */
-		/*
-        stage('SonarQube Analysis') {
-            when {
-                expression { env.BRANCH_NAME != "prod-branch" } // Skip Sonar for prod
-            }
-            steps {
-                withSonarQubeEnv('SonarServer') {
-                    sh '''
-                        mvn sonar:sonar \
-                        -Dsonar.projectKey=Amazon \
-                        -Dsonar.projectName=AmazonApp \
-                        -Dsonar.java.binaries=target
-                    '''
-                }
-            }
-        }
-		*/
-
-        /* ------------------------------------------------------
-         * 5. BUILD WAR
-         ------------------------------------------------------ */
-        stage('Build WAR') {
-            steps {
-                echo "Building App Version: ${VERSION}"
-                sh "cd Amazon && mvn clean install -Dapp.version=${VERSION}"
-            }
-        }
-
-        /* ------------------------------------------------------
-         * 6. BACKUP WAR
-         ------------------------------------------------------ */
-		stage('Backup WAR') {
-   			steps {
-        		sh '''
-            		echo "Backup directory: ${BACKUP_DIR}"
-            
-           		 	mkdir -p ${BACKUP_DIR}
-            
-            		# Using double quotes for variable expansion
-            		cp Amazon/target/*.war "${BACKUP_DIR}/Amazon-${VERSION}-${BRANCH_NAME}.war"
-            
-            		echo "Backup created successfully"
-        		'''
-    			}
+	
+	stages{
+    
+		stage( 'Clone' ){
+		steps{
+			echo "Cloning branch: ${BRANCH_NAME}"
+			git branch: "${BRANCH_NAME}" , url:'https://github.com/likhithaal/Amazon_cicd.git'
+		    }
+  		}
+      
+		stage( 'Clean' ){
+		steps{
+			sh 'cd Amazon && mvn clean'
+			}
 		}
+		
+		stage( 'Unit test' ){
+		steps{
+			sh 'cd Amazon && mvn test'
+			}
+		}
+		
+		stage( 'Building WAR' ){
+		steps{
+			echo "Building version: ${params.APP_VERSION}"
+			sh "cd Amazon && mvn clean install -Dapp.version=${params.APP_VERSION}"
+			}
+		}
+		
+		stage('Backup WAR') {
+        steps {
+			sh "mkdir -p ${WAR_BACKUP_DIR}"
+			sh "cp Amazon/Amazon-Web/target/*.war ${WAR_BACKUP_DIR}/amazon_${BUILD_NUMBER}.war"
+            }
+        }
 
-
-
-        /* ------------------------------------------------------
-         * 7. DEPLOY TO TOMCAT (Dev / QA / Prod)
-         ------------------------------------------------------ */
-        stage('Deploy to Tomcat') {
-            steps {
-                script {
-                    def tomcatPath = ""
-
-                    if (env.BRANCH_NAME == "dev-branch") {
-                        tomcatPath = DEV_TOMCAT
-                    } 
-                    else if (env.BRANCH_NAME == "qa-branch") {
-                        tomcatPath = QA_TOMCAT
-                    } 
-                    else if (env.BRANCH_NAME == "prod-branch") {
-                        tomcatPath = PROD_TOMCAT
-                    } 
-                    else {
-                        error "Unknown branch ${env.BRANCH_NAME}"
-                    }
-					
-				/*
-                    echo "Deploying to Tomcat at: ${tomcatPath}"
-
-                    sh """
-                        # Stop Tomcat gracefully
-                        if pgrep -f "tomcat"; then
-                            echo "Stopping Tomcat..."
-                            ${tomcatPath}/bin/shutdown.sh || true
-                            sleep 5
-                        fi
-
-                        # Ensure no lock issue
-                        rm -rf ${tomcatPath}/webapps/ROOT
-                        rm -rf ${tomcatPath}/webapps/ROOT.war
-
-                        # Copy fresh WAR
-                        cp target/*.war ${tomcatPath}/webapps/ROOT.war
-
-                        echo "WAR deployed to Tomcat."
-
-                        # Start Tomcat
-                        ${tomcatPath}/bin/startup.sh
-                        sleep 5
-
-                        # Auto restart if Tomcat failed
-                        if ! pgrep -f "tomcat"; then
-                            echo "Tomcat crashed → restarting..."
-                            ${tomcatPath}/bin/startup.sh
-                        fi
-                    """
-					*/
+		stage('Deploy to Tomcat') {
+		steps {
+			script {
+				def warFile = findFiles(glob: 'Amazon/Amazon-Web/target/*.war')[0]
+                    
+				echo "Deploying ${warFile.name} to Tomcat"
+                    
+                    // Using Tomcat Manager API
+				sh """
+					curl -u ${params.TOMCAT_USER}:${params.TOMCAT_PASSWORD} \
+						-T ${warFile.path} \
+						${env.TOMCAT_MANAGER_URL}/deploy?path=/amazon&update=true
+				"""
                 }
             }
         }
-    }
-
-    /* ------------------------------------------------------
-     * 8. POST ACTIONS
-     ------------------------------------------------------ */
-    post {
-        success {
-            echo "Pipeline completed successfully for ${env.BRANCH_NAME}"
-        }
-        failure {
-            echo "Pipeline FAILED on ${env.BRANCH_NAME}"
-        }
-    }
+		
+	}
+	
+	post {
+	success {
+		echo "Pipeline completed successfully for ${env.BRANCH_NAME}"
+	}
+	failure {
+		echo "Pipeline FAILED on ${env.BRANCH_NAME}"
+	}
+	}
 }
