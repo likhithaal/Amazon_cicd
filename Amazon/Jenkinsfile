@@ -36,7 +36,7 @@ pipeline {
          ------------------------------------------------------ */
         stage('Clean') {
             steps {
-                sh 'mvn clean'
+                sh 'cd Amazon && mvn clean'
             }
         }
 
@@ -45,7 +45,7 @@ pipeline {
          ------------------------------------------------------ */
         stage('Unit Test') {
             steps {
-                sh 'mvn test'
+                sh 'cd Amazon && mvn test'
             }
         }
 
@@ -76,7 +76,7 @@ pipeline {
         stage('Build WAR') {
             steps {
                 echo "Building App Version: ${VERSION}"
-                sh "mvn clean install -Dapp.version=${VERSION}"
+                sh "cd Amazon && mvn clean install -Dapp.version=${VERSION}"
             }
         }
 
