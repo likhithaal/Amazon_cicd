@@ -1,44 +1,163 @@
-//added some features
-
-pipeline{
-	agent any
+pipeline {
+    agent any
 
     parameters {
-		string(name: 'APP_VERSION', defaultValue: '1.0.0', description: 'Application Version')
-        choice(name: 'ENV', choices: ['dev', 'qa', 'prod'], description: 'Select Environment')
+        string(name: 'APP_VERSION', defaultValue: '1.0.0', description: 'Application Version')
     }
 
-	environment {
-        BRANCH_NAME = "${params.ENV}-branch"
+    environment {
+        // Set Tomcat paths
+        DEV_TOMCAT  = "/opt/tomcat_dev"
+        QA_TOMCAT   = "/opt/tomcat_qa"
+        PROD_TOMCAT = "/opt/tomcat_prod"
+
+        // Backup folder
+        BACKUP_DIR = "/opt/war_backups"
+
+        // Resolve version safely
+        VERSION = "${params.APP_VERSION ?: '1.0.0'}"
     }
-	
-	stages{
-    
-		stage( 'clone' ){
-		steps{
-			echo "Cloning branch: ${BRANCH_NAME}"
-			git branch: "${BRANCH_NAME}" , url:'https://github.com/likhithaal/Amazon_cicd.git'
-		    }
-  		}
-      
-		stage( 'clean' ){
-		steps{
-			sh 'cd Amazon && mvn clean'
-			}
-		}
-		
-		stage( 'test' ){
-		steps{
-			sh 'cd Amazon && mvn test'
-			}
-		}
-		
-		stage( 'build' ){
-		steps{
-			echo "Building version: ${params.APP_VERSION}"
-			sh "cd Amazon && mvn clean install -Dapp.version=${params.APP_VERSION}"
-			}
-		}
-		
-	}
+
+    stages {
+
+        /* ------------------------------------------------------
+         * 1. CLONE REPO
+         ------------------------------------------------------ */
+        stage('Clone') {
+            steps {
+                echo "Building branch: ${env.BRANCH_NAME}"
+                checkout scm
+            }
+        }
+
+        /* ------------------------------------------------------
+         * 2. CLEAN
+         ------------------------------------------------------ */
+        stage('Clean') {
+            steps {
+                sh 'mvn clean'
+            }
+        }
+
+        /* ------------------------------------------------------
+         * 3. UNIT TEST
+         ------------------------------------------------------ */
+        stage('Unit Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        /* ------------------------------------------------------
+         * 4. SONARQUBE ANALYSIS
+         ------------------------------------------------------ */
+		/*
+        stage('SonarQube Analysis') {
+            when {
+                expression { env.BRANCH_NAME != "prod-branch" } // Skip Sonar for prod
+            }
+            steps {
+                withSonarQubeEnv('SonarServer') {
+                    sh '''
+                        mvn sonar:sonar \
+                        -Dsonar.projectKey=Amazon \
+                        -Dsonar.projectName=AmazonApp \
+                        -Dsonar.java.binaries=target
+                    '''
+                }
+            }
+        }
+		*/
+
+        /* ------------------------------------------------------
+         * 5. BUILD WAR
+         ------------------------------------------------------ */
+        stage('Build WAR') {
+            steps {
+                echo "Building App Version: ${VERSION}"
+                sh "mvn clean install -Dapp.version=${VERSION}"
+            }
+        }
+
+        /* ------------------------------------------------------
+         * 6. BACKUP WAR
+         ------------------------------------------------------ */
+        stage('Backup WAR') {
+            steps {
+                sh '''
+                    mkdir -p ${BACKUP_DIR}
+                    cp target/*.war ${BACKUP_DIR}/Amazon-${VERSION}-${env.BRANCH_NAME}.war
+                    echo "Backup created: ${BACKUP_DIR}/Amazon-${VERSION}-${env.BRANCH_NAME}.war"
+                '''
+            }
+        }
+
+        /* ------------------------------------------------------
+         * 7. DEPLOY TO TOMCAT (Dev / QA / Prod)
+         ------------------------------------------------------ */
+        stage('Deploy to Tomcat') {
+            steps {
+                script {
+                    def tomcatPath = ""
+
+                    if (env.BRANCH_NAME == "dev-branch") {
+                        tomcatPath = DEV_TOMCAT
+                    } 
+                    else if (env.BRANCH_NAME == "qa-branch") {
+                        tomcatPath = QA_TOMCAT
+                    } 
+                    else if (env.BRANCH_NAME == "prod-branch") {
+                        tomcatPath = PROD_TOMCAT
+                    } 
+                    else {
+                        error "Unknown branch ${env.BRANCH_NAME}"
+                    }
+					
+				/*
+                    echo "Deploying to Tomcat at: ${tomcatPath}"
+
+                    sh """
+                        # Stop Tomcat gracefully
+                        if pgrep -f "tomcat"; then
+                            echo "Stopping Tomcat..."
+                            ${tomcatPath}/bin/shutdown.sh || true
+                            sleep 5
+                        fi
+
+                        # Ensure no lock issue
+                        rm -rf ${tomcatPath}/webapps/ROOT
+                        rm -rf ${tomcatPath}/webapps/ROOT.war
+
+                        # Copy fresh WAR
+                        cp target/*.war ${tomcatPath}/webapps/ROOT.war
+
+                        echo "WAR deployed to Tomcat."
+
+                        # Start Tomcat
+                        ${tomcatPath}/bin/startup.sh
+                        sleep 5
+
+                        # Auto restart if Tomcat failed
+                        if ! pgrep -f "tomcat"; then
+                            echo "Tomcat crashed → restarting..."
+                            ${tomcatPath}/bin/startup.sh
+                        fi
+                    """
+					*/
+                }
+            }
+        }
+    }
+
+    /* ------------------------------------------------------
+     * 8. POST ACTIONS
+     ------------------------------------------------------ */
+    post {
+        success {
+            echo "Pipeline completed successfully for ${env.BRANCH_NAME}"
+        }
+        failure {
+            echo "Pipeline FAILED on ${env.BRANCH_NAME}"
+        }
+    }
 }
