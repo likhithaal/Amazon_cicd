@@ -5,11 +5,16 @@ pipeline{
     parameters {
 		string(name: 'APP_VERSION', defaultValue: '1.0.0', description: 'Application Version')
         choice(name: 'ENV', choices: ['dev', 'qa', 'prod'], description: 'Select Environment')
+		string(name: 'TOMCAT_USER', defaultValue: 'admin', description: 'Tomcat Manager Username')
+        string(name: 'TOMCAT_PASSWORD', defaultValue: '', description: 'Tomcat Manager Password', password: true)
     }
 
 	environment {
         BRANCH_NAME = "${params.ENV}-branch"
 		WAR_BACKUP_DIR = "/home/likhitha/Devops-course/jenkins/jenkins_backup"
+		DEPLOY_SERVER = "localhost"  // Your Tomcat server IP
+        DEPLOY_PATH = "/opt/tomcat/webapps"
+        TOMCAT_MANAGER_URL = "http://localhost/manager/Amazon"
     }
 	
 	stages{
@@ -44,6 +49,23 @@ pipeline{
         steps {
 			sh "mkdir -p ${WAR_BACKUP_DIR}"
 			sh "cp Amazon/Amazon-Web/target/*.war ${WAR_BACKUP_DIR}/amazon_${BUILD_NUMBER}.war"
+            }
+        }
+
+		stage('Deploy to Tomcat') {
+		steps {
+			script {
+				def warFile = findFiles(glob: 'Amazon/Amazon-Web/target/*.war')[0]
+                    
+				echo "Deploying ${warFile.name} to Tomcat"
+                    
+                    // Using Tomcat Manager API
+				sh """
+					curl -u ${params.TOMCAT_USER}:${params.TOMCAT_PASSWORD} \
+						-T ${warFile.path} \
+						${env.TOMCAT_MANAGER_URL}/deploy?path=/amazon&update=true
+				"""
+                }
             }
         }
 		
