@@ -83,14 +83,19 @@ pipeline {
          * 6. BACKUP WAR
          ------------------------------------------------------ */
 		stage('Backup WAR') {
-   			steps {
+    		steps {
         		sh '''
+            		echo "Backup directory: ${BACKUP_DIR}"
+
             		mkdir -p ${BACKUP_DIR}
-            	cp target/*.war ${BACKUP_DIR}/Amazon-${VERSION}-${env.BRANCH_NAME}.war
-            	echo "Backup created: ${BACKUP_DIR}/Amazon-${VERSION}-${env.BRANCH_NAME}.war"
+
+            		cp target/*.war ${BACKUP_DIR}/Amazon-${VERSION}-${env.BRANCH_NAME}.war
+
+            		echo "Backup created successfully"
         		'''
-    			}
+   		 		}
 		}
+
 
 
         /* ------------------------------------------------------
