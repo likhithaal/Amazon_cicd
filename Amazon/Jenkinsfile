@@ -7,7 +7,6 @@ pipeline{
         choice(name: 'ENV', choices: ['dev', 'qa', 'prod'], description: 'Select Environment')
 		string(name: 'TOMCAT_USER', defaultValue: 'tomcatuser1', description: 'Tomcat Manager Username')
         string(name: 'TOMCAT_PASSWORD', defaultValue: 'tomcatuser1', description: 'Tomcat Manager Password')
-		// password(name: 'TOMCAT_PASSWORD', defaultValue: 'tomcatuser1', description: 'Tomcat Manager Password')
     }
 
 	environment {
@@ -17,10 +16,6 @@ pipeline{
 		TOMCAT_PORT = "8081"
 		TOMCAT_MANAGER_URL = "http://${DEPLOY_SERVER}:${TOMCAT_PORT}/manager"  
 		APP_URL = "http://${DEPLOY_SERVER}:${TOMCAT_PORT}/Amazon"
-        // DEPLOY_PATH = "/opt/tomcat/webapps"
-        // TOMCAT_MANAGER_URL = "http://localhost:8081/manager/text"
-		// TOMCAT_MANAGER_URL = "http://localhost:8081/manager/text/deploy?path=/Amazon"
-		
     }
 	
 	stages{
@@ -71,70 +66,53 @@ pipeline{
             }
         }
 
-/*		stage('Deploy to Tomcat') {
+		stage('Deploy to Tomcat') {
 		steps {
 			script {
-				def warFile = findFiles(glob: 'Amazon/Amazon-Web/target/*.war')[0]
-                    
-				echo "Deploying ${warFile.name} to Tomcat"
-                    
-                    // Using Tomcat Manager API
+				echo "Deploying to Tomcat Manager: ${env.TOMCAT_MANAGER_URL}"
+				echo "Using username: ${params.TOMCAT_USER}"
+				
+				// Method 1: Simple way (if only one WAR file)
 				sh """
+					echo "=== Starting Deployment ==="
+					
+					# Find the WAR file
+					WAR_FILE=\$(find Amazon/Amazon-Web/target -name "*.war" | head -1)
+					
+					if [ -z "\$WAR_FILE" ]; then
+						echo "ERROR: No WAR file found!"
+						exit 1
+					fi
+					
+					echo "Found WAR file: \$WAR_FILE"
+					
+					# Test Tomcat Manager connection first
+					echo "Testing Tomcat Manager connection..."
 					curl -u ${params.TOMCAT_USER}:${params.TOMCAT_PASSWORD} \
-						-T ${warFile.path} \
-						${env.TOMCAT_MANAGER_URL}/deploy?path=/amazon&update=true
+						 ${env.TOMCAT_MANAGER_URL}/list 2>/dev/null || echo "Connection test failed"
+					
+					# Deploy using Tomcat Manager
+					echo "Deploying to /Amazon context..."
+					curl -v -u ${params.TOMCAT_USER}:${params.TOMCAT_PASSWORD} \
+						 -T "\$WAR_FILE" \
+						 "${env.TOMCAT_MANAGER_URL}/deploy?path=/Amazon&update=true"
+					
+					echo "=== Deployment command executed ==="
 				"""
-                }
-            }
-        }
-		*/
-	        stage('Deploy to Tomcat') {
-            steps {
-                script {
-                    echo "Deploying to Tomcat Manager: ${env.TOMCAT_MANAGER_URL}"
-                    echo "Using username: ${params.TOMCAT_USER}"
-                    
-                    // Method 1: Simple way (if only one WAR file)
-                    sh """
-                        echo "=== Starting Deployment ==="
-                        
-                        # Find the WAR file
-                        WAR_FILE=\$(find Amazon/Amazon-Web/target -name "*.war" | head -1)
-                        
-                        if [ -z "\$WAR_FILE" ]; then
-                            echo "ERROR: No WAR file found!"
-                            exit 1
-                        fi
-                        
-                        echo "Found WAR file: \$WAR_FILE"
-                        
-                        # Test Tomcat Manager connection first
-                        echo "Testing Tomcat Manager connection..."
-                        curl -u ${params.TOMCAT_USER}:${params.TOMCAT_PASSWORD} \
-                             ${env.TOMCAT_MANAGER_URL}/list 2>/dev/null || echo "Connection test failed"
-                        
-                        # Deploy using Tomcat Manager
-                        echo "Deploying to /Amazon context..."
-                        curl -v -u ${params.TOMCAT_USER}:${params.TOMCAT_PASSWORD} \
-                             -T "\$WAR_FILE" \
-                             "${env.TOMCAT_MANAGER_URL}/deploy?path=/Amazon&update=true"
-                        
-                        echo "=== Deployment command executed ==="
-                    """
-                    
-                    // Wait for deployment
-                    sleep 15
-                    
-                    // Verify deployment
-                    sh """
-                        echo "Verifying application at: ${env.APP_URL}"
-                        curl -f -s -o /dev/null -w "HTTP Status: %{http_code}\\n" ${env.APP_URL}/ \
-                            && echo "✓ Deployment successful!" \
-                            || echo " Application not responding yet"
-                    """
-                }
-            }
-        }
+				
+				// Wait for deployment
+				sleep 15
+				
+				// Verify deployment
+				sh """
+					echo "Verifying application at: ${env.APP_URL}"
+					curl -f -s -o /dev/null -w "HTTP Status: %{http_code}\\n" ${env.APP_URL}/ \
+						&& echo "✓ Deployment successful!" \
+						|| echo " Application not responding yet"
+				"""
+			}
+		}
+	}
 		
 	}
 	
