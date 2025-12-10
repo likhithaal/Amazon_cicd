@@ -15,7 +15,8 @@ pipeline{
 		WAR_BACKUP_DIR = "/home/likhitha/Devops-course/jenkins/jenkins_backup"
 		DEPLOY_SERVER = "localhost"  // Your Tomcat server IP
         DEPLOY_PATH = "/opt/tomcat/webapps"
-        TOMCAT_MANAGER_URL = "http://localhost:8081/manager/Amazon"
+        // TOMCAT_MANAGER_URL = "http://localhost:8081/manager/Amazon"
+		TOMCAT_MANAGER_URL = "http://localhost:8081/manager/text/deploy?path=/Amazon"
     }
 	
 	stages{
