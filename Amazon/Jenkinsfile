@@ -7,7 +7,7 @@ pipeline{
         choice(name: 'ENV', choices: ['dev', 'qa', 'prod'], description: 'Select Environment')
 		string(name: 'TOMCAT_USER', defaultValue: 'tomcatuser1', description: 'Tomcat Manager Username')
         // string(name: 'TOMCAT_PASSWORD', defaultValue: '', description: 'Tomcat Manager Password', password: true)
-		password(name: 'TOMCAT_PASSWORD', defaultValue: '', description: 'Tomcat Manager Password')
+		password(name: 'TOMCAT_PASSWORD', defaultValue: 'tomcatuser1', description: 'Tomcat Manager Password')
     }
 
 	environment {
